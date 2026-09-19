@@ -61,6 +61,7 @@ Source server's news channel
 - [Architecture](#architecture)
 - [Storage](#storage)
 - [Deploying with systemd](#deploying-with-systemd)
+- [Modifying the code](#modifying-the-code)
 
 ---
 
@@ -567,3 +568,11 @@ sudo journalctl -u discord-news-router -f
 `After=`/`Wants=network-online.target` in the unit file mean it waits for
 networking first); `Restart=on-failure` with `RestartSec=5` restarts it a few
 seconds after a crash.
+
+## Modifying the code
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. This was a deliberate choice to keep the project open and to prevent modified versions from being turned into closed-source hosted services.
+
+You are free to modify and self-host the bot, subject to the terms of the AGPL-3.0. If you modify the bot and provide the modified version to users over a network, the AGPL's corresponding-source requirements apply to those modifications.
+
+If you modify or redistribute this project, please retain the original copyright and license notices and credit the **Discord News Router** project. If you build a larger hosted service around it, I would appreciate clear attribution to this project as well.
