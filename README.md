@@ -14,7 +14,7 @@ a forum, an existing thread, or a normal text channel. Set it up once per channe
 you want tracked (mapped), and let the bot handle the rest.
 
 > This bot is meant to be hosted per server, and is not hosted at the moment for 
-multiple servers by anyone it lives as source code. If the bot grows in community 
+multiple servers by anyone. It lives as source code. If the bot grows in community 
 need and funding is available for it, then I will do so at that time.
 
 A few things worth knowing up front:
