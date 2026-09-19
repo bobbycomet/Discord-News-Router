@@ -13,9 +13,9 @@ the bot automatically sends it on to wherever you want it to go: a new post in
 a forum, an existing thread, or a normal text channel. Set it up once per channel
 you want tracked (mapped), and let the bot handle the rest.
 
-This bot is meant to be used per server hosted and is not hosted at the moment for 
-multiple servers. If the bot grows in community need and funding is available for it, 
-Then I will do so at that time.
+> This bot is meant to be hosted per server, and is not hosted at the moment for 
+multiple servers by anyone it lives as source code. If the bot grows in community 
+need and funding is available for it, then I will do so at that time.
 
 A few things worth knowing up front:
 
