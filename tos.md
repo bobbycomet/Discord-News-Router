@@ -17,7 +17,7 @@ The Bot watches a hub channel set by a server administrator and routes matching 
 
 The Bot automatically processes and forwards content according to those administrator-configured rules. The Operator does not manually select, review, or approve individual pieces of routed content.
 
-Details about data the Bot handles are provided in our [Privacy Policy](PRIVACY_POLICY.md).
+Details about data the Bot handles are provided in our [Privacy Policy](privacy-policy.md).
 
 ---
 
@@ -139,7 +139,7 @@ We may suspend, restrict, or terminate access to the hosted Bot, with or without
 
 You may stop using the Bot at any time by removing it from your server.
 
-To have stored configuration or other data deleted, follow the process described in the [Privacy Policy](PRIVACY_POLICY.md).
+To have stored configuration or other data deleted, follow the process described in the [Privacy Policy](privacy-policy.md).
 
 ---
 
@@ -238,6 +238,6 @@ Continued use of the hosted Bot after the updated Terms become effective means y
 
 ## 18. Entire agreement
 
-These Terms and the [Privacy Policy](PRIVACY_POLICY.md) constitute the entire agreement between you and the Operator regarding the hosted Bot and replace any earlier understandings or agreements regarding the hosted service.
+These Terms and the [Privacy Policy](privacy-policy.md) constitute the entire agreement between you and the Operator regarding the hosted Bot and replace any earlier understandings or agreements regarding the hosted service.
 
 The Bot's open-source license remains a separate agreement governing the software itself.
