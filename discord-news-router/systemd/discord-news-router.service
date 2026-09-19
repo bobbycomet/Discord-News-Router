@@ -1,0 +1,19 @@
+[Unit]
+Description=Discord News Router Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# put the user:group in and use sudo chown -R user:group /opt/discord-news-router e.g., billy:billy, or whatever you use so you the user have permissions in the service file actually has permission to read the venv, the code, and write to router.db
+User= put user name here
+# EDIT ME: where you deployed the project
+WorkingDirectory=/opt/discord-news-router
+EnvironmentFile=/opt/discord-news-router/.env
+ExecStart=/opt/discord-news-router/.venv/bin/python /opt/discord-news-router/bot.py
+Restart=on-failure
+RestartSec=5
+# Restart automatically when the host reboots (enabled via `systemctl enable`, see README)
+
+[Install]
+WantedBy=multi-user.target
