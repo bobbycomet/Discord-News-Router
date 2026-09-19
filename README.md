@@ -16,6 +16,8 @@ you want tracked (mapped), and let the bot handle the rest.
 > This bot is meant to be hosted per server, and is not hosted at the moment for 
 multiple servers by anyone. It lives as source code. If the bot grows in community 
 need and funding is available for it, then I will do so at that time.
+>
+> See the [Terms of Service](tos.md) and [Privacy Policy](privacy-policy.md)
 
 A few things worth knowing up front:
 
