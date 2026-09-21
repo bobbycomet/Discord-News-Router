@@ -1,26 +1,33 @@
 """
-SQLite storage for the news router bot.
+Per-guild SQLite storage for the news router bot.
 
-Design note: per-mapping user IDs, source IDs and keywords are stored as
-JSON-encoded lists inside SQLite TEXT columns (rather than as separate
-normalized rows or a flat JSON file on disk). This keeps everything in one
-durable SQLite file while still giving you the "IDs live in JSON" structure.
+Each Discord server gets its own folder and its own SQLite file:
+
+    data/
+      <guild_id>/
+        router.db
+
+Mapping IDs are the file's own AUTOINCREMENT column, so they're sequential
+and independent per server: a brand-new server's first mapping is always
+#1, never #11 because some other server already has ten. No guild_id column
+is needed anywhere in here — a Database instance is already scoped to one
+guild by which file it opened.
 """
 
 import json
+import os
 from datetime import datetime, timezone
 
 import aiosqlite
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (
-    guild_id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY CHECK (id = 1),
     hub_channel_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS mappings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     destination_channel_id INTEGER NOT NULL,
     user_ids TEXT NOT NULL DEFAULT '[]',
@@ -31,16 +38,13 @@ CREATE TABLE IF NOT EXISTS mappings (
 );
 """
 
-# Columns added after the first release, applied to existing router.db files.
-MIGRATIONS = {
-    "source_ids": "ALTER TABLE mappings ADD COLUMN source_ids TEXT NOT NULL DEFAULT '[]'",
-}
-
 MAX_USER_IDS = 10
 MAX_SOURCE_IDS = 20
 
 
 class Database:
+    """One connection, scoped to a single guild's SQLite file."""
+
     def __init__(self, path: str):
         self.path = path
         self._conn: aiosqlite.Connection | None = None
@@ -49,15 +53,7 @@ class Database:
         self._conn = await aiosqlite.connect(self.path)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA)
-        await self._migrate()
         await self._conn.commit()
-
-    async def _migrate(self):
-        cur = await self._conn.execute("PRAGMA table_info(mappings)")
-        existing = {row["name"] for row in await cur.fetchall()}
-        for column, statement in MIGRATIONS.items():
-            if column not in existing:
-                await self._conn.execute(statement)
 
     async def close(self):
         if self._conn:
@@ -65,18 +61,16 @@ class Database:
 
     # ---------------- settings ----------------
 
-    async def set_hub_channel(self, guild_id: int, channel_id: int):
+    async def set_hub_channel(self, channel_id: int):
         await self._conn.execute(
-            "INSERT INTO settings (guild_id, hub_channel_id) VALUES (?, ?) "
-            "ON CONFLICT(guild_id) DO UPDATE SET hub_channel_id = excluded.hub_channel_id",
-            (guild_id, channel_id),
+            "INSERT INTO settings (id, hub_channel_id) VALUES (1, ?) "
+            "ON CONFLICT(id) DO UPDATE SET hub_channel_id = excluded.hub_channel_id",
+            (channel_id,),
         )
         await self._conn.commit()
 
-    async def get_hub_channel(self, guild_id: int) -> int | None:
-        cur = await self._conn.execute(
-            "SELECT hub_channel_id FROM settings WHERE guild_id = ?", (guild_id,)
-        )
+    async def get_hub_channel(self) -> int | None:
+        cur = await self._conn.execute("SELECT hub_channel_id FROM settings WHERE id = 1")
         row = await cur.fetchone()
         return row["hub_channel_id"] if row else None
 
@@ -84,7 +78,6 @@ class Database:
 
     async def add_mapping(
         self,
-        guild_id: int,
         name: str,
         destination_channel_id: int,
         user_ids: list[int],
@@ -94,10 +87,9 @@ class Database:
     ) -> int:
         cur = await self._conn.execute(
             "INSERT INTO mappings "
-            "(guild_id, name, destination_channel_id, user_ids, source_ids, keyword_mode, keywords, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(name, destination_channel_id, user_ids, source_ids, keyword_mode, keywords, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
-                guild_id,
                 name,
                 destination_channel_id,
                 json.dumps(list(user_ids)[:MAX_USER_IDS]),
@@ -137,28 +129,20 @@ class Database:
         cur = await self._conn.execute("SELECT * FROM mappings WHERE id = ?", (mapping_id,))
         return await cur.fetchone()
 
-    async def list_mappings(self, guild_id: int):
-        cur = await self._conn.execute(
-            "SELECT * FROM mappings WHERE guild_id = ? ORDER BY id", (guild_id,)
-        )
+    async def list_mappings(self):
+        cur = await self._conn.execute("SELECT * FROM mappings ORDER BY id")
         return await cur.fetchall()
 
     # ---------------- bulk user-ID edits ----------------
     #
-    # A mod/team member is often listed in several mappings at once (they post
-    # news in more than one tracked server). These let you add or remove one
-    # user ID everywhere in a guild's mappings in a single command instead of
-    # opening each mapping's modal one at a time.
+    # A mod/team member is often listed in several mappings at once. These
+    # add or remove one user ID across many mappings in a single call instead
+    # of opening each mapping's modal one at a time.
 
-    async def bulk_add_user_id(
-        self, guild_id: int, user_id: int, mapping_ids: list[int] | None = None
-    ) -> list[int]:
-        """Add user_id to every targeted mapping's user_ids list.
-
-        mapping_ids=None means "every mapping in this guild". Returns the IDs
-        of mappings that actually changed (already-present IDs are skipped).
-        """
-        rows = await self.list_mappings(guild_id)
+    async def bulk_add_user_id(self, user_id: int, mapping_ids: list[int] | None = None) -> list[int]:
+        """mapping_ids=None means every mapping in this guild's file.
+        Returns the IDs of mappings that actually changed."""
+        rows = await self.list_mappings()
         if mapping_ids is not None:
             wanted = set(mapping_ids)
             rows = [r for r in rows if r["id"] in wanted]
@@ -173,15 +157,10 @@ class Database:
             changed.append(row["id"])
         return changed
 
-    async def bulk_remove_user_id(
-        self, guild_id: int, user_id: int, mapping_ids: list[int] | None = None
-    ) -> list[int]:
-        """Remove user_id from every targeted mapping's user_ids list.
-
-        mapping_ids=None means "every mapping in this guild". Returns the IDs
-        of mappings that actually changed.
-        """
-        rows = await self.list_mappings(guild_id)
+    async def bulk_remove_user_id(self, user_id: int, mapping_ids: list[int] | None = None) -> list[int]:
+        """mapping_ids=None means every mapping in this guild's file.
+        Returns the IDs of mappings that actually changed."""
+        rows = await self.list_mappings()
         if mapping_ids is not None:
             wanted = set(mapping_ids)
             rows = [r for r in rows if r["id"] in wanted]
@@ -195,3 +174,36 @@ class Database:
             await self.update_mapping(row["id"], user_ids=ids)
             changed.append(row["id"])
         return changed
+
+
+class DatabaseManager:
+    """Owns one Database per guild, opened lazily on first use and cached.
+
+    A guild's file lives at ``<data_root>/<guild_id>/router.db``; the folder
+    is created automatically the first time that guild touches the bot. This
+    is the only thing that makes the bot multi-server-safe — matching and
+    delivery in utils.py don't change at all, since each connection only ever
+    sees one guild's rows to begin with.
+    """
+
+    def __init__(self, data_root: str = "data"):
+        self.data_root = data_root
+        self._dbs: dict[int, Database] = {}
+
+    def _path_for(self, guild_id: int) -> str:
+        guild_dir = os.path.join(self.data_root, str(guild_id))
+        os.makedirs(guild_dir, exist_ok=True)
+        return os.path.join(guild_dir, "router.db")
+
+    async def get(self, guild_id: int) -> Database:
+        db = self._dbs.get(guild_id)
+        if db is None:
+            db = Database(self._path_for(guild_id))
+            await db.connect()
+            self._dbs[guild_id] = db
+        return db
+
+    async def close_all(self):
+        for db in self._dbs.values():
+            await db.close()
+        self._dbs.clear()
