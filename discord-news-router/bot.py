@@ -6,13 +6,13 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from database import Database
+from database import DatabaseManager
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = os.getenv("GUILD_ID")  # optional: speeds up slash command sync during dev/testing
-DB_PATH = os.getenv("DB_PATH", "router.db")
+DATA_DIR = os.getenv("DATA_DIR", "data")  # each server gets its own data/<guild_id>/router.db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,12 +28,10 @@ intents.guilds = True
 class NewsRouterBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!newsrouter-unused!", intents=intents, help_command=None)
-        self.db: Database | None = None
+        # One SQLite file per guild, opened lazily on first use — see database.py.
+        self.db_manager = DatabaseManager(DATA_DIR)
 
     async def setup_hook(self):
-        self.db = Database(DB_PATH)
-        await self.db.connect()
-
         for ext in ("cogs.setup_cog", "cogs.router_cog"):
             await self.load_extension(ext)
 
@@ -47,8 +45,7 @@ class NewsRouterBot(commands.Bot):
             log.info("Synced %d global commands (can take up to ~1hr to propagate)", len(synced))
 
     async def close(self):
-        if self.db:
-            await self.db.close()
+        await self.db_manager.close_all()
         await super().close()
 
 
